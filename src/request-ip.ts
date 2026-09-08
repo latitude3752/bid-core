@@ -53,9 +53,19 @@ function isTrustProxyHeadersEnabled(): boolean {
 export function clientIpFromHeaders(headerStore: {
   get(name: string): string | null;
 }): string {
-  const trustProxyHeaders = Boolean(process.env.VERCEL) || isTrustProxyHeadersEnabled();
+  // Vercel always sets VERCEL="1" (see the docs link above); checking for
+  // that exact value rather than `Boolean(process.env.VERCEL)` avoids the
+  // classic env-var footgun where a stray VERCEL="0" (e.g. copied from a
+  // template, or a non-Vercel tool using 0/1 for its own unrelated flag)
+  // would otherwise coerce truthy and enable trust with no real Vercel
+  // edge in front of the request.
+  const trustProxyHeaders = process.env.VERCEL === "1" || isTrustProxyHeadersEnabled();
   if (!trustProxyHeaders) return "unknown";
-  const realIp = headerStore.get("x-real-ip")?.trim();
+  // A misbehaving/double-configured proxy chain could set X-Real-IP more
+  // than once; Headers.get() then returns the values joined with ", ".
+  // Apply the same last-entry-or-fail-closed handling as X-Forwarded-For
+  // below rather than trusting a raw, possibly-compound string verbatim.
+  const realIp = headerStore.get("x-real-ip")?.split(",").pop()?.trim();
   if (realIp) return realIp;
   const forwardedFor = headerStore.get("x-forwarded-for");
   // Take the raw last comma-separated entry (not the first) and fail
