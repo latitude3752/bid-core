@@ -52,6 +52,11 @@ describe("clientIpFromHeaders", () => {
     expect(clientIpFromHeaders(h)).toBe("9.9.9.9");
   });
 
+  it("fails closed to unknown on a malformed x-real-ip rather than falling through to trust x-forwarded-for", () => {
+    const h = headersWith({ "x-real-ip": "3.3.3.3,", "x-forwarded-for": "5.6.7.8" });
+    expect(clientIpFromHeaders(h)).toBe("unknown");
+  });
+
   it("trusts these headers off Vercel when a self-hosted operator opts in via TRUST_PROXY_HEADERS", () => {
     vi.stubEnv("VERCEL", "");
     vi.stubEnv("TRUST_PROXY_HEADERS", "1");

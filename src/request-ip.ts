@@ -50,6 +50,16 @@ function isTrustProxyHeadersEnabled(): boolean {
   return false;
 }
 
+/** Takes the raw last comma-separated entry of a header value (not the
+ * first) -- a misbehaving/double-configured proxy chain could set either
+ * header more than once, and Headers.get() then joins the values with
+ * ", ". Returns undefined (rather than reaching past a blank last
+ * position to an earlier, less-trusted segment) if that position is
+ * empty or the header wasn't present at all. */
+function lastNonEmptySegment(value: string | null): string | undefined {
+  return value?.split(",").pop()?.trim() || undefined;
+}
+
 export function clientIpFromHeaders(headerStore: {
   get(name: string): string | null;
 }): string {
@@ -61,16 +71,13 @@ export function clientIpFromHeaders(headerStore: {
   // edge in front of the request.
   const trustProxyHeaders = process.env.VERCEL === "1" || isTrustProxyHeadersEnabled();
   if (!trustProxyHeaders) return "unknown";
-  // A misbehaving/double-configured proxy chain could set X-Real-IP more
-  // than once; Headers.get() then returns the values joined with ", ".
-  // Apply the same last-entry-or-fail-closed handling as X-Forwarded-For
-  // below rather than trusting a raw, possibly-compound string verbatim.
-  const realIp = headerStore.get("x-real-ip")?.split(",").pop()?.trim();
-  if (realIp) return realIp;
-  const forwardedFor = headerStore.get("x-forwarded-for");
-  // Take the raw last comma-separated entry (not the first) and fail
-  // closed to "unknown" if that specific position is blank, rather than
-  // reaching past it to an earlier, less-trusted segment.
-  const last = forwardedFor?.split(",").pop()?.trim();
-  return last || "unknown";
+  const realIpHeader = headerStore.get("x-real-ip");
+  // If X-Real-IP is present at all but malformed (e.g. a trailing comma),
+  // fail closed to "unknown" rather than falling through to trust
+  // X-Forwarded-For instead -- falling through would let an attacker send
+  // a deliberately-malformed X-Real-IP alongside their own X-Forwarded-For
+  // to pick a fresh bucket per request, the exact bypass this function
+  // exists to close.
+  if (realIpHeader !== null) return lastNonEmptySegment(realIpHeader) ?? "unknown";
+  return lastNonEmptySegment(headerStore.get("x-forwarded-for")) ?? "unknown";
 }
