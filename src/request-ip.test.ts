@@ -57,6 +57,20 @@ describe("clientIpFromHeaders", () => {
     expect(clientIpFromHeaders(h)).toBe("unknown");
   });
 
+  it("fails closed to unknown when x-real-ip is present but a literal empty string", () => {
+    const h = headersWith({ "x-real-ip": "", "x-forwarded-for": "5.6.7.8" });
+    expect(clientIpFromHeaders(h)).toBe("unknown");
+  });
+
+  it("takes the last entry when x-real-ip is genuinely set twice on a real Headers object", () => {
+    // headersWith() hardcodes an already-comma-joined string; this exercises
+    // the actual Fetch Headers.get() join behavior the code depends on.
+    const real = new Headers();
+    real.append("x-real-ip", "1.1.1.1");
+    real.append("x-real-ip", "9.9.9.9");
+    expect(clientIpFromHeaders(real)).toBe("9.9.9.9");
+  });
+
   it("trusts these headers off Vercel when a self-hosted operator opts in via TRUST_PROXY_HEADERS", () => {
     vi.stubEnv("VERCEL", "");
     vi.stubEnv("TRUST_PROXY_HEADERS", "1");

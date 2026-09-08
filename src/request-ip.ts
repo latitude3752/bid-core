@@ -50,14 +50,14 @@ function isTrustProxyHeadersEnabled(): boolean {
   return false;
 }
 
-/** Takes the raw last comma-separated entry of a header value (not the
- * first) -- a misbehaving/double-configured proxy chain could set either
- * header more than once, and Headers.get() then joins the values with
- * ", ". Returns undefined (rather than reaching past a blank last
- * position to an earlier, less-trusted segment) if that position is
- * empty or the header wasn't present at all. */
-function lastNonEmptySegment(value: string | null): string | undefined {
-  return value?.split(",").pop()?.trim() || undefined;
+/** Reads the raw LAST comma-separated position of a header value only
+ * (never scans back past a blank one to an earlier, less-trusted
+ * segment) -- a misbehaving/double-configured proxy chain could set
+ * either header more than once, and Headers.get() then joins the values
+ * with ", ". Defaults to "unknown" if that position is empty or the
+ * header wasn't present at all. */
+function strictLastSegment(value: string | null): string {
+  return value?.split(",").pop()?.trim() || "unknown";
 }
 
 export function clientIpFromHeaders(headerStore: {
@@ -72,12 +72,17 @@ export function clientIpFromHeaders(headerStore: {
   const trustProxyHeaders = process.env.VERCEL === "1" || isTrustProxyHeadersEnabled();
   if (!trustProxyHeaders) return "unknown";
   const realIpHeader = headerStore.get("x-real-ip");
-  // If X-Real-IP is present at all but malformed (e.g. a trailing comma),
-  // fail closed to "unknown" rather than falling through to trust
-  // X-Forwarded-For instead -- falling through would let an attacker send
-  // a deliberately-malformed X-Real-IP alongside their own X-Forwarded-For
-  // to pick a fresh bucket per request, the exact bypass this function
-  // exists to close.
-  if (realIpHeader !== null) return lastNonEmptySegment(realIpHeader) ?? "unknown";
-  return lastNonEmptySegment(headerStore.get("x-forwarded-for")) ?? "unknown";
+  // `!= null` (not `!== null`) so a non-conforming headerStore that
+  // returns undefined rather than null for an absent header is still
+  // treated as absent, not as a present-but-malformed value.
+  if (realIpHeader != null) {
+    // If X-Real-IP is present at all but malformed (e.g. a trailing
+    // comma), fail closed to "unknown" rather than falling through to
+    // trust X-Forwarded-For instead -- falling through would let an
+    // attacker send a deliberately-malformed X-Real-IP alongside their
+    // own X-Forwarded-For to pick a fresh bucket per request, the exact
+    // bypass this function exists to close.
+    return strictLastSegment(realIpHeader);
+  }
+  return strictLastSegment(headerStore.get("x-forwarded-for"));
 }
