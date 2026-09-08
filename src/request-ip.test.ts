@@ -6,9 +6,13 @@ function headersWith(values: Record<string, string>) {
   return { get: (name: string) => map.get(name) ?? null };
 }
 
+const ENV_VARS = ["VERCEL", "TRUST_PROXY_HEADERS"] as const;
+
 describe("clientIpFromHeaders", () => {
-  const originalVercel = process.env.VERCEL;
-  const originalTrustProxy = process.env.TRUST_PROXY_HEADERS;
+  const originalEnv: Record<(typeof ENV_VARS)[number], string | undefined> = {
+    VERCEL: process.env.VERCEL,
+    TRUST_PROXY_HEADERS: process.env.TRUST_PROXY_HEADERS,
+  };
 
   beforeEach(() => {
     process.env.VERCEL = "1";
@@ -16,10 +20,11 @@ describe("clientIpFromHeaders", () => {
   });
 
   afterEach(() => {
-    if (originalVercel === undefined) delete process.env.VERCEL;
-    else process.env.VERCEL = originalVercel;
-    if (originalTrustProxy === undefined) delete process.env.TRUST_PROXY_HEADERS;
-    else process.env.TRUST_PROXY_HEADERS = originalTrustProxy;
+    for (const name of ENV_VARS) {
+      const original = originalEnv[name];
+      if (original === undefined) delete process.env[name];
+      else process.env[name] = original;
+    }
   });
 
   it("prefers x-real-ip over x-forwarded-for", () => {
@@ -52,5 +57,26 @@ describe("clientIpFromHeaders", () => {
     process.env.TRUST_PROXY_HEADERS = "1";
     const h = headersWith({ "x-real-ip": "9.9.9.9" });
     expect(clientIpFromHeaders(h)).toBe("9.9.9.9");
+  });
+
+  it("also honors the x-forwarded-for fallback under the TRUST_PROXY_HEADERS opt-in", () => {
+    delete process.env.VERCEL;
+    process.env.TRUST_PROXY_HEADERS = "1";
+    const h = headersWith({ "x-forwarded-for": "6.6.6.6, 2.2.2.2" });
+    expect(clientIpFromHeaders(h)).toBe("2.2.2.2");
+  });
+
+  it("accepts TRUST_PROXY_HEADERS case-insensitively and trimmed", () => {
+    delete process.env.VERCEL;
+    process.env.TRUST_PROXY_HEADERS = " True \n";
+    const h = headersWith({ "x-real-ip": "9.9.9.9" });
+    expect(clientIpFromHeaders(h)).toBe("9.9.9.9");
+  });
+
+  it("treats an unrecognized TRUST_PROXY_HEADERS value as unset rather than throwing", () => {
+    delete process.env.VERCEL;
+    process.env.TRUST_PROXY_HEADERS = "yes";
+    const h = headersWith({ "x-real-ip": "9.9.9.9" });
+    expect(clientIpFromHeaders(h)).toBe("unknown");
   });
 });
