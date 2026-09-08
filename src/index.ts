@@ -1,5 +1,6 @@
 export * from "./deadline";
 export * from "./cron-auth";
+export * from "./request-ip";
 export * from "./relay-auth";
 export * from "./access-decision";
 export * from "./action-digest";
