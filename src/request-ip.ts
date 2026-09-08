@@ -4,19 +4,24 @@ import "server-only";
  * Best-effort client IP for rate-limiting / lockout keys, given a header
  * accessor (e.g. the result of Next.js's `headers()`).
  *
- * X-Real-IP and X-Forwarded-For are only trusted when running on Vercel
- * (the `VERCEL` env var Vercel sets on every deployment), where the edge
- * overwrites these headers with its own observed IP and never forwards a
- * client-supplied value -- see https://vercel.com/docs/headers/request-headers.
- * A self-hosted deployment can't make the same guarantee without its own
- * reverse proxy correctly stripping/overwriting these headers first, so
- * trusting them unconditionally there would let an attacker set X-Real-IP
- * directly on every request to get a fresh rate-limit/lockout bucket each
- * time, bypassing brute-force lockout entirely -- the same vulnerability
- * class this function exists to close. Self-hosted operators who terminate
- * TLS behind their own trusted reverse proxy and want per-client lockout
- * should have it rewrite these headers before this check will trust them
- * (not yet configurable here).
+ * X-Real-IP and X-Forwarded-For are trusted when either:
+ *  - running on Vercel (the `VERCEL` env var Vercel sets on every
+ *    deployment), where the edge overwrites these headers with its own
+ *    observed IP and never forwards a client-supplied value -- see
+ *    https://vercel.com/docs/headers/request-headers; or
+ *  - `TRUST_PROXY_HEADERS=1` is set, an explicit opt-in for self-hosted
+ *    operators running behind their own reverse proxy that they've
+ *    configured to overwrite these headers with the real client IP.
+ *
+ * Neither is trusted by default off Vercel: an unconfigured self-hosted
+ * deployment (no reverse proxy stripping these headers) would otherwise
+ * let an attacker set X-Real-IP directly on every request to get a fresh
+ * rate-limit/lockout bucket each time, bypassing brute-force lockout
+ * entirely -- the same vulnerability class this function exists to close.
+ * Self-hosted operators who've done that reverse-proxy configuration set
+ * TRUST_PROXY_HEADERS=1 to restore per-client tracking; leaving it unset
+ * is the safe default (all such requests fail closed to "unknown," a
+ * shared bucket, rather than trusting a spoofable header).
  *
  * Previously duplicated (and independently bug-fixed three times in a row)
  * across bidhawk, bidyard, and bidpulse's local admin/login actions.ts --
@@ -25,7 +30,9 @@ import "server-only";
 export function clientIpFromHeaders(headerStore: {
   get(name: string): string | null;
 }): string {
-  if (!process.env.VERCEL) return "unknown";
+  const trustProxyHeaders =
+    Boolean(process.env.VERCEL) || process.env.TRUST_PROXY_HEADERS === "1";
+  if (!trustProxyHeaders) return "unknown";
   const realIp = headerStore.get("x-real-ip")?.trim();
   if (realIp) return realIp;
   const forwardedFor = headerStore.get("x-forwarded-for");

@@ -8,14 +8,18 @@ function headersWith(values: Record<string, string>) {
 
 describe("clientIpFromHeaders", () => {
   const originalVercel = process.env.VERCEL;
+  const originalTrustProxy = process.env.TRUST_PROXY_HEADERS;
 
   beforeEach(() => {
     process.env.VERCEL = "1";
+    delete process.env.TRUST_PROXY_HEADERS;
   });
 
   afterEach(() => {
     if (originalVercel === undefined) delete process.env.VERCEL;
     else process.env.VERCEL = originalVercel;
+    if (originalTrustProxy === undefined) delete process.env.TRUST_PROXY_HEADERS;
+    else process.env.TRUST_PROXY_HEADERS = originalTrustProxy;
   });
 
   it("prefers x-real-ip over x-forwarded-for", () => {
@@ -37,9 +41,16 @@ describe("clientIpFromHeaders", () => {
     expect(clientIpFromHeaders(headersWith({}))).toBe("unknown");
   });
 
-  it("does not trust these headers off Vercel, even if present", () => {
+  it("does not trust these headers off Vercel by default, even if present", () => {
     delete process.env.VERCEL;
     const h = headersWith({ "x-real-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1" });
     expect(clientIpFromHeaders(h)).toBe("unknown");
+  });
+
+  it("trusts these headers off Vercel when a self-hosted operator opts in via TRUST_PROXY_HEADERS", () => {
+    delete process.env.VERCEL;
+    process.env.TRUST_PROXY_HEADERS = "1";
+    const h = headersWith({ "x-real-ip": "9.9.9.9" });
+    expect(clientIpFromHeaders(h)).toBe("9.9.9.9");
   });
 });
