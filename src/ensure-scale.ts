@@ -13,7 +13,12 @@ export type ScaleInfo = { programType: ProgramType | null; estimatedCeiling: num
 export async function ensureOpportunityScale(
   id: string,
   options: { force?: boolean } = {}
-): Promise<{ text: string | null; fetchedAt: string | null; scale: ScaleInfo }> {
+): Promise<{
+  text: string | null;
+  fetchedAt: string | null;
+  scale: ScaleInfo;
+  descriptionFetchError: string | null;
+}> {
   const admin = getSupabaseAdmin();
   const { data: opp, error } = await admin
     .from("opportunities")
@@ -36,15 +41,21 @@ export async function ensureOpportunityScale(
   };
 
   if (!options.force && opp.scale_checked_at) {
-    return { text, fetchedAt, scale: existingScale };
+    return { text, fetchedAt, scale: existingScale, descriptionFetchError: null };
   }
 
+  // Distinguished from "no description URL to fetch" (not a failure) so
+  // callers can surface a real fetch failure (e.g. a SAM.gov rate limit)
+  // to the user instead of it looking like classification just ran fine
+  // off the title alone with nothing to report.
+  let descriptionFetchError: string | null = null;
   if ((options.force || !text) && descriptionUrl) {
     try {
       text = await fetchNoticeDescription(descriptionUrl);
       fetchedAt = new Date().toISOString();
-    } catch {
+    } catch (err) {
       // Title alone still gets classified below.
+      descriptionFetchError = err instanceof Error ? err.message : "Failed to fetch notice description.";
     }
   }
 
@@ -68,5 +79,5 @@ export async function ensureOpportunityScale(
     .eq("id", id);
   if (updErr) throw new Error(updErr.message);
 
-  return { text, fetchedAt, scale };
+  return { text, fetchedAt, scale, descriptionFetchError };
 }
