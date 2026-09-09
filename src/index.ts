@@ -9,6 +9,7 @@ export * from "./program-scale";
 export * from "./notice-description";
 export * from "./ensure-scale";
 export * from "./sync-runs";
+export * from "./sam-gov-usage";
 export * from "./opportunity-relevance";
 export * from "./naics-codes";
 export * from "./distance";
