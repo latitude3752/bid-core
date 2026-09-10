@@ -7,6 +7,7 @@ export * from "./action-digest";
 export * from "./sam-gov";
 export * from "./program-scale";
 export * from "./notice-description";
+export * from "./submission-method";
 export * from "./ensure-scale";
 export * from "./sync-runs";
 export * from "./sam-gov-usage";
