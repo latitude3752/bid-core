@@ -1,7 +1,7 @@
 import "server-only";
 import { getSupabaseAdmin } from "./supabase/admin";
 
-export type SyncRunSource = "direct" | "relay" | "gpr" | "tx-esbd" | "va-eva" | "bonfire";
+export type SyncRunSource = "direct" | "relay" | "gpr" | "tx-esbd" | "va-eva" | "bonfire" | "grants";
 
 export type SyncRun = {
   id: number;
