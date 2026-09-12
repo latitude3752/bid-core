@@ -1,6 +1,6 @@
 {
   "name": "@netacracy/bid-core",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": false,
   "description": "Shared engine for the Bid product family (BidHawk, BidYard, BidPulse) -- SAM.gov client, NAICS/relevance/sync-status infra, and ZIP-distance utilities. Consumed as source via Next.js transpilePackages, not pre-built.",
   "license": "UNLICENSED",
