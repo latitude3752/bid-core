@@ -64,19 +64,30 @@ export async function ensureOpportunityScale(
     programType: classifyProgramType(scaleSource),
     estimatedCeiling: extractProgramCeiling(scaleSource),
   };
-  const scaleCheckedAt = new Date().toISOString();
 
-  const { error: updErr } = await admin
-    .from("opportunities")
-    .update({
-      requirements_text: text ?? opp.requirements_text,
-      requirements_fetched_at: fetchedAt,
-      program_type: scale.programType,
-      estimated_ceiling: scale.estimatedCeiling,
-      scale_checked_at: scaleCheckedAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  // Only stamp scale_checked_at on a successful description fetch or when
+  // there is no description URL to fetch. A failed fetch must not look like
+  // a completed check -- otherwise the next unforced call would skip retry
+  // and treat the miss as cached success.
+  const patch: {
+    requirements_text: string | null;
+    requirements_fetched_at: string | null;
+    program_type: ProgramType | null;
+    estimated_ceiling: number | null;
+    updated_at: string;
+    scale_checked_at?: string;
+  } = {
+    requirements_text: text ?? opp.requirements_text,
+    requirements_fetched_at: fetchedAt,
+    program_type: scale.programType,
+    estimated_ceiling: scale.estimatedCeiling,
+    updated_at: new Date().toISOString(),
+  };
+  if (!descriptionFetchError) {
+    patch.scale_checked_at = new Date().toISOString();
+  }
+
+  const { error: updErr } = await admin.from("opportunities").update(patch).eq("id", id);
   if (updErr) throw new Error(updErr.message);
 
   return { text, fetchedAt, scale, descriptionFetchError };

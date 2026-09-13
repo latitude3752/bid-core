@@ -105,7 +105,7 @@ export class SamGovQuotaExceededError extends Error {
 }
 
 function isQuotaExceeded(status: number, body: string): boolean {
-  return status === 429 && /exceeded.{0,20}quota/i.test(body);
+  return status === 429 && /quota/i.test(body);
 }
 
 const SAM_RETRY_DELAY_MS = 500;

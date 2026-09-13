@@ -193,4 +193,12 @@ describe("SAM.gov opportunity search", () => {
     );
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it("treats a 429 whose body says quota exceeded (either word order) as quota exceeded", async () => {
+    vi.mocked(fetch).mockResolvedValue(errorResponse(429, '{"message":"quota exceeded"}'));
+    await expect(searchOpportunitiesByNaics("336411")).rejects.toBeInstanceOf(
+      SamGovQuotaExceededError
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
 });

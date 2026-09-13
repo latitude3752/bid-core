@@ -43,13 +43,19 @@ export async function getSamGovUsageToday(): Promise<{ rows: SamGovUsageRow[]; t
  * this is telemetry about a call that already happened, so a reporting
  * failure must never fail or delay the user-facing action it's about. */
 export async function reportSamGovUsage(hubBaseUrl: string, app: string, count = 1): Promise<void> {
-  try {
-    await fetch(`${hubBaseUrl}/api/sam-usage/report`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-relay-secret": process.env.SAM_RELAY_SECRET ?? "" },
-      body: JSON.stringify({ app, count }),
+  // Fire-and-forget: a hung BidHawk hub must not delay the user-facing
+  // action this telemetry is about. AbortSignal.timeout caps the request;
+  // errors (including abort) are swallowed on the detached promise.
+  void fetch(`${hubBaseUrl}/api/sam-usage/report`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-relay-secret": process.env.SAM_RELAY_SECRET ?? "" },
+    body: JSON.stringify({ app, count }),
+    signal: AbortSignal.timeout(1500),
+  })
+    .then((res) => {
+      if (!res.ok) console.error(`reportSamGovUsage: hub returned ${res.status}`);
+    })
+    .catch(() => {
+      // Best-effort telemetry; swallow network/DNS/timeout failures.
     });
-  } catch {
-    // Best-effort telemetry; swallow network/DNS/timeout failures.
-  }
 }

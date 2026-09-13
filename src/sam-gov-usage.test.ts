@@ -64,6 +64,20 @@ describe("reportSamGovUsage", () => {
     await expect(reportSamGovUsage("https://trybidhawk.com", "bidyard", 1)).resolves.toBeUndefined();
   });
 
+  it("returns without waiting for a hung hub", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise(() => {
+            /* never resolves */
+          })
+      )
+    );
+
+    await expect(reportSamGovUsage("https://trybidhawk.com", "bidyard", 1)).resolves.toBeUndefined();
+  });
+
   it("posts the app and count to the hub's report endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
@@ -72,7 +86,10 @@ describe("reportSamGovUsage", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://trybidhawk.com/api/sam-usage/report",
-      expect.objectContaining({ method: "POST" })
+      expect.objectContaining({
+        method: "POST",
+        signal: expect.any(AbortSignal),
+      })
     );
   });
 });
