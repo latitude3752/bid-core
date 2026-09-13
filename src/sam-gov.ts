@@ -108,6 +108,26 @@ function isQuotaExceeded(status: number, body: string): boolean {
   return status === 429 && /exceeded.{0,20}quota/i.test(body);
 }
 
+const SAM_RETRY_DELAY_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** SAM.gov's search endpoint occasionally 504s on an otherwise-valid query --
+ * confirmed live in BidHawk's sync history: a different NAICS code or
+ * keyword timed out on five separate days, never the same one twice, which
+ * is upstream flakiness rather than a broken query. A single retry after a
+ * short delay clears nearly all of these. 4xx responses (429 quota
+ * included) are never retried -- a second attempt would fail identically,
+ * and quota-exceeded is handled by the caller instead. */
+async function fetchSamGovPage(url: string): Promise<Response> {
+  const res = await fetch(url);
+  if (res.ok || res.status < 500) return res;
+  await sleep(SAM_RETRY_DELAY_MS);
+  return fetch(url);
+}
+
 async function searchOpportunities(
   extraParams: Record<string, string>,
   options: OpportunitySearchOptions = {}
@@ -134,7 +154,7 @@ async function searchOpportunities(
       ...extraParams,
     });
 
-    const res = await fetch(`${SAM_GOV_SEARCH_URL}?${params.toString()}`);
+    const res = await fetchSamGovPage(`${SAM_GOV_SEARCH_URL}?${params.toString()}`);
     if (!res.ok) {
       const body = await res.text();
       if (isQuotaExceeded(res.status, body)) {

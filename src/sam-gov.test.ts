@@ -163,10 +163,34 @@ describe("SAM.gov opportunity search", () => {
     );
   });
 
-  it("throws a plain error for a non-quota failure", async () => {
+  it("throws a plain error when a 5xx failure persists through the retry", async () => {
     vi.mocked(fetch).mockResolvedValue(errorResponse(503, "Service unavailable"));
-    await expect(searchOpportunitiesByNaics("336411")).rejects.not.toBeInstanceOf(
+    const result = expect(searchOpportunitiesByNaics("336411")).rejects.not.toBeInstanceOf(
       SamGovQuotaExceededError
     );
+    await vi.advanceTimersByTimeAsync(1000);
+    await result;
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers from a single transient 5xx by retrying once (Sep 12 audit: rotating 504s)", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(errorResponse(504, "Gateway Time-out"))
+      .mockResolvedValueOnce(jsonResponse({ totalRecords: 1, opportunitiesData: [{ noticeId: "n1" }] }));
+
+    const resultPromise = searchOpportunitiesByNaics("336411");
+    await vi.advanceTimersByTimeAsync(1000);
+    const results = await resultPromise;
+
+    expect(results.map((r) => r.noticeId)).toEqual(["n1"]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a 4xx (including 429 quota) response", async () => {
+    vi.mocked(fetch).mockResolvedValue(errorResponse(429, '{"message":"exceeded quota"}'));
+    await expect(searchOpportunitiesByNaics("336411")).rejects.toBeInstanceOf(
+      SamGovQuotaExceededError
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
