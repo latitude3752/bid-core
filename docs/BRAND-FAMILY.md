@@ -78,6 +78,8 @@ Gold (`#d29a35` / `#e8b95e`) is **FCC only**. Using it as the Bid CTA is why the
 
 Each SKU **overrides** `--accent`, `--accent-ink`, `--hero-bg`, `--hero-text`, `--link`. See product one-pagers.
 
+**`--link` must stay meaningfully darker than `--accent`** (≥4.5:1 against Paper/white) — `gold-600` and every eyebrow/label/nav-text usage route through it, and accent alone is tuned for buttons and dark-hero text, not small text on light backgrounds. Setting them equal (BidPulse's original mistake) silently breaks WCAG AA sitewide the moment gold-* usages render as text.
+
 ---
 
 ## Lockups (to ship after palette sign-off)
@@ -94,7 +96,8 @@ Do not change a chosen lockup without updating that product's `docs/BRAND.md`.
 
 ## Implementation order
 
-1. **Done (2026-09-13):** tokens in each `globals.css`; gold-* aliases to accent; marketing heroes, nav, pricing/start CTAs, OG.
-2. Wordmark SVG + monogram favicon (Papa `BrandLogo` pattern).
-3. App chrome: accent on primary pipeline buttons/chips only (gold already aliases).
-4. No photography in v1.
+1. **Done (2026-09-13):** tokens in each `globals.css`; gold-400/500 alias to accent, gold-600/700 alias to link; marketing heroes, nav, pricing/start CTAs, OG.
+2. **Done (2026-09-13):** AA contrast pass, all four SKUs. `gold-600` originally aliased to accent, same as `gold-400`/`gold-500` — but `gold-600` is used app-wide as on-paper/on-white *text* (eyebrows, labels), not as a button fill, and every product's accent is tuned for buttons/dark-hero use, not small text on light backgrounds. Result: near-invisible eyebrows on pricing/terms/privacy/grants/opportunities/admin pages across the whole portfolio (as low as ~1.7:1, need 4.5:1). Fixed by re-aliasing `gold-600` to `link` (the already-darker, text-safe shade `gold-700` was correctly using) in every SKU. BidPulse had no darker shade to route to — its `link` was defined identical to `accent` — so its `link` was darkened to `#0F6F63`; update BidPulse's one-pager if you touch that token again. BidYard and BidPulse also had raw `text-accent`/`border-accent` used directly (bypassing the gold-* alias) on their light heroes and grant-callout cards, which needed the same `link` swap. BidKeep's `/radar` — the one surface its own one-pager calls "the brand" — had been skipped by the original tokens commit and still had `rounded-full` gold-500 pill CTAs; finished the same day onto `ACCENT_CTA` + an 8px-radius `link`-bordered outline button.
+3. Wordmark SVG + monogram favicon (Papa `BrandLogo` pattern).
+4. App chrome: accent on primary pipeline buttons/chips only (gold already aliases).
+5. No photography in v1.
